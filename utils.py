@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 from jax import jit, random, lax
 from jax.ops import index, index_update
+from functools import reduce
 
 
 def _concat_indices(indices1, indices2):
@@ -87,3 +88,62 @@ def maxvol(A, eps):
         return jnp.arange(A.shape[0])
     else:
         return _maxvol(A, eps)
+
+
+def _set_left_canonical(kernels):
+    def push_r_left(vars, ker):
+        updated_state, log_norm, r = vars
+        ker = jnp.tensordot(r, ker, axes=1)
+        left_bond, dim, _ = ker.shape
+        ker = ker.reshape((left_bond*dim, -1))
+        ker, r = jnp.linalg.qr(ker)
+        ker = ker.reshape((left_bond, dim, -1))
+        norm = jnp.linalg.norm(r)
+        r /= norm
+        updated_state += [ker]
+        log_norm += jnp.log(norm)
+        return updated_state, log_norm, r
+    return reduce(push_r_left, [([], jnp.array(0.), jnp.array([[1.]]))] + kernels)
+
+
+def _truncate_left_canonical(kernels,
+                             r,
+                             log_norm,
+                             eps):
+    scale = jnp.exp(log_norm / len(kernels))  # rescaling coeff. for tt kernels
+    def push_r_right(vars, ker):
+        updated_state, r = vars
+        left_bond, dim, _ = ker.shape
+        ker = jnp.tensordot(ker, r, axes=1)
+        ker = ker.reshape((left_bond, -1))
+        u, s, ker = jnp.linalg.svd(ker)
+        # setting threshold
+        sq_norm = (s ** 2).sum()
+        cum_sq_norm = jnp.cumsum((s ** 2)[::-1])
+        trshld = (jnp.sqrt(cum_sq_norm / sq_norm) > eps).sum()
+        # truncation
+        u = u[:, :trshld]
+        s = s[:trshld]
+        ker = ker[:trshld]
+        ker = ker.reshape((trshld, dim, -1))
+        r = u * s
+        updated_state = [scale * ker] + updated_state
+        return updated_state, r
+    return reduce(push_r_right, [([], r)] + kernels[::-1])
+
+
+def truncate(kernels, eps):
+    """Truncates TT decomposition of a tensor.
+
+    Args:
+        kernels: list with TT kernels
+        eps: accuracy of a local truncation
+
+    Returns:
+        kernels: list with truncated TT kernels
+        infidelity: infidelity"""
+
+    kernels, log_norm, r = _set_left_canonical(kernels)
+    kernels, norm = _truncate_left_canonical(kernels, r, log_norm, eps)
+    infidelity = 1 - norm[0, 0]
+    return kernels, infidelity

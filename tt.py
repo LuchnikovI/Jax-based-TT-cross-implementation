@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from jax import random
-from utils import _random_indices_subset, _concat_indices, _left_skeleton, _right_skeleton
+from utils import _random_indices_subset, _concat_indices, _left_skeleton, _right_skeleton, truncate
 
 
 class TT:
@@ -121,3 +121,15 @@ class TT:
         for i, kernerl in enumerate(self.kernels[1:]):
             left = left @ (kernerl[:, indices[:, i+1]].transpose((1, 0, 2)))
         return left.reshape((-1,))
+
+    def compression(self, 
+                    eps):
+        """The method compress the TT decomposition of a tensor.
+
+        Args:
+            eps: accuracy of a local truncation
+    
+        Returns: infidelity"""
+
+        self.kernels, infidelity = truncate(self.kernels, eps)
+        return infidelity
