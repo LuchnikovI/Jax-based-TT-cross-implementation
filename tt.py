@@ -118,9 +118,13 @@ class TT:
         Returns:
             array of shape (batch_size,), results"""
         left = self.kernels[0][:, indices[:, 0]].transpose((1, 0, 2))
+        log_norm = 0.
         for i, kernerl in enumerate(self.kernels[1:]):
             left = left @ (kernerl[:, indices[:, i+1]].transpose((1, 0, 2)))
-        return left.reshape((-1,))
+            norm = jnp.linalg.norm(left)
+            left /= norm
+            log_norm += jnp.log(norm)
+        return left.reshape((-1,)) * jnp.exp(log_norm)
 
     def compression(self, 
                     eps):
