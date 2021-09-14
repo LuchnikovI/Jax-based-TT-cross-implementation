@@ -145,5 +145,6 @@ def truncate(kernels, eps):
 
     kernels, log_norm, r = _set_left_canonical(kernels)
     kernels, norm = _truncate_left_canonical(kernels, r, log_norm, eps)
+    kernels[0] *= norm / jnp.abs(norm)
     infidelity = jnp.sqrt(1 - norm[0, 0] ** 2)
-    return kernels, norm
+    return kernels, infidelity
