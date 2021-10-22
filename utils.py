@@ -92,7 +92,8 @@ def maxvol(A, eps):
 
 
 def _set_left_canonical(kernels):
-    def push_r_left(vars, ker):
+
+    def push_r_right(vars, ker):
         updated_state, log_norm, r = vars
         ker = jnp.tensordot(r, ker, axes=1)
         left_bond, dim, _ = ker.shape
@@ -104,15 +105,16 @@ def _set_left_canonical(kernels):
         updated_state += [ker]
         log_norm += jnp.log(norm)
         return updated_state, log_norm, r
-    return reduce(push_r_left, [([], jnp.array(0.), jnp.array([[1.]]))] + kernels)
+    return reduce(push_r_right, [([], jnp.array(0.), jnp.array([[1.]]))] + kernels)
 
 
 def _truncate_left_canonical(kernels,
                              r,
                              log_norm,
                              eps):
+
     scale = jnp.exp(log_norm / len(kernels))  # rescaling coeff. for tt kernels
-    def push_r_right(vars, ker):
+    def push_r_left(vars, ker):
         updated_state, r = vars
         left_bond, dim, _ = ker.shape
         ker = jnp.tensordot(ker, r, axes=1)
@@ -130,7 +132,7 @@ def _truncate_left_canonical(kernels,
         r = u * s
         updated_state = [scale * ker] + updated_state
         return updated_state, r
-    return reduce(push_r_right, [([], r)] + kernels[::-1])
+    return reduce(push_r_left, [([], r)] + kernels[::-1])
 
 
 def truncate(kernels, eps):
@@ -147,5 +149,6 @@ def truncate(kernels, eps):
     kernels, log_norm, r = _set_left_canonical(kernels)
     kernels, norm = _truncate_left_canonical(kernels, r, log_norm, eps)
     kernels[0] *= norm / jnp.abs(norm)
-    infidelity = jnp.sqrt(1 - norm[0, 0] ** 2)
+    # infidelity = jnp.sqrt(1 - norm[0, 0] ** 2)
+    infidelity = norm[0, 0]
     return kernels, infidelity
