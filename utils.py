@@ -5,6 +5,7 @@ from functools import reduce
 
 
 def _concat_indices(indices1, indices2):
+
     length1 = indices1.shape[1]
     length2 = indices2.shape[1]
     indices2 = jnp.tile(indices2.reshape((1, -1, length2)), (indices1.shape[0], 1, 1))
@@ -13,15 +14,18 @@ def _concat_indices(indices1, indices2):
     indices = indices.reshape((-1, indices.shape[2]))
     return indices
 
+
 def _random_indices_subset(key, indices, r):
+
     mask = jnp.concatenate([jnp.ones((r,), bool),
                             jnp.zeros((indices.shape[0] - r), bool)], axis=0)
     mask = random.permutation(key, mask)
     _, key = random.split(key)
     return random.permutation(key, indices[mask])
 
-@jit
+
 def _maxvol(A, eps):
+
     def iter(vars):
         A, b_max, order = vars
         a = A[:A.shape[1]]
@@ -40,13 +44,12 @@ def _maxvol(A, eps):
         _, b_max, _ = vars
         return b_max > 1 + eps
     _, _, order = lax.while_loop(cond, iter, (A, 1e16, jnp.arange(A.shape[0])))
-    order = jnp.arange(A.shape[0])[order]
     order = order[:A.shape[1]]
     return order
 
 
-@jit
 def _left_skeleton(unfolding, eps):
+
     r, dim, _ = unfolding.shape
     unfolding = unfolding.reshape((r * dim, -1))
     q, _ = jnp.linalg.qr(unfolding)
@@ -57,8 +60,8 @@ def _left_skeleton(unfolding, eps):
     return new_kernel, indices
 
 
-@jit
 def _right_skeleton(unfolding, eps):
+
     _, dim, r = unfolding.shape
     unfolding = unfolding.reshape((-1, r * dim))
     unfolding = unfolding.T
@@ -75,14 +78,12 @@ def maxvol(A, eps):
     """Implementation of the maxvol algorithm.
 
     Args:
-        A: array of shape (n, r), matrix for which one needs to
-            find a maxvol submatrix
-        eps: float value, accuracy
+        A: complex or real valued array of shape (n, m)
+        eps: real valued number representing accuracy of the algorithm.
 
     Returns:
-        array of shape (r,), indices that form
-        a maxvol matrix, i.e. A[indices] is a maxvol
-        matrix"""
+        int valued array of shape (m,) representing numbers of rows
+        that are forming the maxvol submatrix"""
 
     if A.shape[0] < A.shape[1]:
         return jnp.arange(A.shape[0])
@@ -136,12 +137,12 @@ def truncate(kernels, eps):
     """Truncates TT decomposition of a tensor.
 
     Args:
-        kernels: list with TT kernels
-        eps: accuracy of a local truncation
+        kernels: list with TT kernels.
+        eps: real valued number representing accuracy of the local truncation.
 
     Returns:
-        kernels: list with truncated TT kernels
-        infidelity: infidelity"""
+        kernels: list with truncated TT kernels.
+        infidelity: real valued number representing final infidelity"""
 
     kernels, log_norm, r = _set_left_canonical(kernels)
     kernels, norm = _truncate_left_canonical(kernels, r, log_norm, eps)

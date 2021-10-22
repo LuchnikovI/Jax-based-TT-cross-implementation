@@ -17,7 +17,7 @@ class TT:
 
         self.current_sweep = 0  # number of dmrg sweeps
         self.mode = 'fwd'  # current sweep mode
-        self.kernel_num = 0  # current kernel
+        self.kernel_num = 0  # current kernel number
         self.max_r = max_r
         self.shape = shape
         self.kernels = len(shape) * [None]  # TT kernels
@@ -71,6 +71,7 @@ class TT:
                 new_kernel, indices = _left_skeleton(measurements, eps)
                 new_kernel = new_kernel.reshape((1, self.shape[0], -1))
                 self.kernels[0] = new_kernel
+                self.left_indices[0] = jnp.arange(self.shape[0])[:, jnp.newaxis][indices]
                 self.kernel_num += 1
             elif self.kernel_num == len(self.shape) - 1:
                 self.kernels[-1] = measurements.reshape((-1, self.shape[-1], 1))
@@ -92,6 +93,7 @@ class TT:
                 new_kernel, indices = _right_skeleton(measurements, eps)
                 new_kernel = new_kernel.reshape((-1, self.shape[-1], 1))
                 self.kernels[-1] = new_kernel
+                self.right_indices[-1] = jnp.arange(self.shape[-1])[:, jnp.newaxis][indices]
                 self.kernel_num -= 1
             elif self.kernel_num == 0:
                 self.kernels[0] = measurements.reshape((1, self.shape[0], -1))
