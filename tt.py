@@ -119,6 +119,7 @@ class TT:
 
         Returns:
             array of shape (batch_size,), results"""
+
         left = self.kernels[0][:, indices[:, 0]].transpose((1, 0, 2))
         log_norm = 0.
         for i, kernerl in enumerate(self.kernels[1:]):
@@ -130,12 +131,9 @@ class TT:
 
     def compression(self, 
                     eps):
-        """The method compress the TT decomposition of a tensor.
+        """The method compresses the TT decomposition of a tensor.
 
         Args:
-            eps: accuracy of a local truncation
-    
-        Returns: infidelity"""
+            eps: real valued number representing truncation accuracy."""
 
-        self.kernels, infidelity = truncate(self.kernels, eps)
-        return infidelity
+        self.kernels = truncate(self.kernels, eps)
