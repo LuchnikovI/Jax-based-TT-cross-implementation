@@ -5,6 +5,7 @@ from functools import reduce
 
 
 def _concat_indices(indices1, indices2):
+    """This function concatenates two sets of indices."""
 
     length1 = indices1.shape[1]
     length2 = indices2.shape[1]
@@ -16,6 +17,7 @@ def _concat_indices(indices1, indices2):
 
 
 def _random_indices_subset(key, indices, r):
+    """This function samples a random subset of indices."""
 
     mask = jnp.concatenate([jnp.ones((r,), bool),
                             jnp.zeros((indices.shape[0] - r), bool)], axis=0)
@@ -25,6 +27,7 @@ def _random_indices_subset(key, indices, r):
 
 
 def _maxvol(A, eps):
+    """This function search for maxvol submatrix."""
 
     def iter(vars):
         A, b_max, order = vars
@@ -49,6 +52,8 @@ def _maxvol(A, eps):
 
 
 def _left_skeleton(unfolding, eps):
+    """This function performs the left skeleton decomposition
+    of an unfolding kernel."""
 
     r, dim, _ = unfolding.shape
     unfolding = unfolding.reshape((r * dim, -1))
@@ -61,6 +66,8 @@ def _left_skeleton(unfolding, eps):
 
 
 def _right_skeleton(unfolding, eps):
+    """This function performs the right skeleton decomposition
+    of an unfolding kernel."""
 
     _, dim, r = unfolding.shape
     unfolding = unfolding.reshape((-1, r * dim))
@@ -92,6 +99,7 @@ def maxvol(A, eps):
 
 
 def _set_left_canonical(kernels):
+    """This function sets TT to the left canonical form."""
 
     def push_r_right(vars, ker):
         updated_state, log_norm, r = vars
@@ -112,8 +120,10 @@ def _truncate_left_canonical(kernels,
                              r,
                              log_norm,
                              eps):
+    """This function truncates the left canonical form of a TT."""
 
     scale = jnp.exp(log_norm / len(kernels))  # rescaling coeff. for tt kernels
+    d = len(kernels)
     def push_r_left(vars, ker):
         updated_state, r = vars
         left_bond, dim, _ = ker.shape
@@ -123,7 +133,7 @@ def _truncate_left_canonical(kernels,
         # setting threshold
         sq_norm = (s ** 2).sum()
         cum_sq_norm = jnp.cumsum((s ** 2)[::-1])
-        trshld = (jnp.sqrt(cum_sq_norm / sq_norm) > eps).sum()
+        trshld = (jnp.sqrt(cum_sq_norm / sq_norm) > (eps / jnp.sqrt(d-1))).sum()
         # truncation
         u = u[:, :trshld]
         s = s[:trshld]
@@ -143,11 +153,10 @@ def truncate(kernels, eps):
         eps: real valued number representing accuracy of the local truncation.
 
     Returns:
-        kernels: list with truncated TT kernels.
-        infidelity: real valued number representing final infidelity"""
+        kernels: list with truncated TT kernels."""
 
     kernels, log_norm, r = _set_left_canonical(kernels)
     kernels, norm = _truncate_left_canonical(kernels, r, log_norm, eps)
     kernels[0] *= norm / jnp.abs(norm)
-    infidelity = jnp.sqrt(jnp.abs(1 - norm[0, 0] ** 2))
-    return kernels, infidelity
+    # norm_deficit = jnp.sqrt(jnp.abs(1 - norm[0, 0] ** 2))
+    return kernels
