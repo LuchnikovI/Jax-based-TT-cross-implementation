@@ -119,6 +119,18 @@ class TT_cross:
 
         return self.kernels
 
+    def random_args(self, key, n):
+        """Samples set of random arguments.
+
+        Args:
+            key: PRNGKey.
+            n: int valued number representing number of arguments.
+
+        Returns:
+            array of shape (n, number_of_modes) representing set of arguments."""
+
+        return jnp.concatenate([jnp.argmax(random.gumbel(key, (n, 1, dim)), axis=2) for dim in self.shape], axis=1)
+
 
 # Functions that are necessary for operating with tensors in TT format
 
