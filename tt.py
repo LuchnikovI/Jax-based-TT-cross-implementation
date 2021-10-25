@@ -3,24 +3,26 @@ from jax import random
 from utils import _random_indices_subset, _concat_indices, _left_skeleton, _right_skeleton, truncate
 
 
-class TT:
+class TT_cross:
 
     def __init__(self,
                  key,
                  max_r,
                  shape):
-        """Tensor-train for TT-cross interpolation.
+        """Tensor-train.
 
         key: PRNGKey
-        max_r: int value, maximal TT rank
-        shape: tuple, shape of a tensor"""
+        max_r: int valued number representing maximal TT rank.
+        shape: tuple representing shape of a tensor."""
 
-        self.current_sweep = 0  # number of dmrg sweeps
-        self.mode = 'fwd'  # current sweep mode
+        self.current_sweep = 0  # number of a current dmrg sweeps
+        self.mode = 'fwd'  # current sweep mode (fwd or rev)
         self.kernel_num = 0  # current kernel number
-        self.max_r = max_r
-        self.shape = shape
-        self.kernels = len(shape) * [None]  # TT kernels
+        self.max_r = max_r  # maximal TT rank
+        self.shape = shape  # shape of a tensor
+        self.kernels = len(shape) * [None]  # list of TT kernels
+
+        # initial random indices representing maxvol of an unfolding matrix
         key, subkey = random.split(key)
         keys = random.split(subkey, len(shape)-1)
         dim = shape[0]
@@ -43,8 +45,10 @@ class TT:
         self.right_indices = self.right_indices[::-1]
 
     def get_arg(self):
-        """The method returns the current set of arguments (array of shape
-        (batch_size, number_of_modes)) that needs to be 'measured'."""
+        """Provides a current set of arguments which have to be evaluated (measured).
+
+        Returns:
+            int valued array of shape (batch_size, number_of_modes)."""
 
         if self.kernel_num == 0:
             central_index = jnp.arange(self.shape[0])[:, jnp.newaxis]
@@ -59,11 +63,11 @@ class TT:
     def update(self,
                measurements,
                eps=1e-3):
-        """The method updates the current kernel based on the obtained measurements.
+        """Updates the current kernel based on the obtained measurements.
 
         Args:
-            measurements: array of shape (batch_size,)
-            eps: float value, accuracy"""
+            measurements: array of shape (batch_size,).
+            eps: float valued number representing accuracy."""
 
         if self.mode == 'fwd':
             if self.kernel_num == 0:
@@ -110,30 +114,87 @@ class TT:
                 self.right_indices[self.kernel_num-1] = _concat_indices(jnp.arange(dim)[:, jnp.newaxis], self.right_indices[self.kernel_num])[indices]
                 self.kernel_num -= 1
 
-    def eval(self,
-             indices):
-        """The method evaluates TT at a given set of indices (arguments).
+    def get_tt_kernels(self):
+        """Returns list with TT kernels."""
 
-        Args:
-            indices: array of shape (batch_size, number_of_modes), arguments
+        return self.kernels
 
-        Returns:
-            array of shape (batch_size,), results"""
 
-        left = self.kernels[0][:, indices[:, 0]].transpose((1, 0, 2))
-        log_norm = 0.
-        for i, kernerl in enumerate(self.kernels[1:]):
-            left = left @ (kernerl[:, indices[:, i+1]].transpose((1, 0, 2)))
-            norm = jnp.linalg.norm(left)
-            left /= norm
-            log_norm += jnp.log(norm)
-        return left.reshape((-1,)) * jnp.exp(log_norm)
+# Functions that are necessary for operating with tensors in TT format
 
-    def compression(self, 
-                    eps):
-        """The method compresses the TT decomposition of a tensor.
 
-        Args:
-            eps: real valued number representing truncation accuracy."""
+def eval(tt_kernels,
+         indices):
+    """Evaluates TT at a given set of indices (arguments).
 
-        self.kernels = truncate(self.kernels, eps)
+    Args:
+        tt_kernels: list with TT kernels.
+        indices: array of shape (batch_size, number_of_modes) representing arguments.
+
+    Returns:
+        array of shape (batch_size,) representing the results of ecaluation."""
+
+    left = tt_kernels[0][:, indices[:, 0]].transpose((1, 0, 2))
+    log_norm = 0.
+    for i, kernerl in enumerate(tt_kernels[1:]):
+        left = left @ (kernerl[:, indices[:, i+1]].transpose((1, 0, 2)))
+        norm = jnp.linalg.norm(left)
+        left /= norm
+        log_norm += jnp.log(norm)
+    return left.reshape((-1,)) * jnp.exp(log_norm)
+
+
+def compression(tt_kernels,
+                eps):
+    """Compresses the TT representation of a tensor.
+
+    Args:
+        tt_kernels: list with TT kernels.
+        eps: real valued number representing truncation accuracy."""
+
+    return truncate(tt_kernels, eps)
+
+
+def dot(tt_kernels_1,
+        tt_kernels_2):
+    """Evaluates the dot product between two tensors in TT format.
+
+    Args:
+        tt_kernels_1: list with TT kernels representing the first tensor.
+        tt_kernels_2: list with TT kernels representing the second tensor.
+
+    Returns:
+        the result of the dot product in the following terms:
+            log_abs: log(|z|)
+            phi: phase of z"""
+
+    tt_kernels_1 = list(map(jnp.conj, tt_kernels_1))
+    left = jnp.tensordot(tt_kernels_1, tt_kernels_2, axes=[[1], [1]])
+    left = left[0, :, 0]
+    log_norm = 0.
+    for i, (kernel_1, kernel_2) in enumerate(zip(tt_kernels_1[1:], tt_kernels_2[1:])):
+        left = jnp.tensordot(left, kernel_1, axes=[[0], [0]])
+        left = jnp.tensordot(left, kernel_2, axes=[[1, 2], [0, 1]])
+        norm = jnp.linalg.norm(left)
+        left /= norm
+        log_norm += jnp.log(norm)
+    return log_norm, jnp.angle(left)
+
+
+def fubini_study_dist(tt_kernels_1,
+                      tt_kernels_2):
+    """Calculates the Fubini Study distance between tensors (angle between tensors).
+
+    Args:
+        tt_kernels_1: list with TT kernels representing the first tensor.
+        tt_kernels_2: list with TT kernels representing the second tensor.
+
+    Returns:
+        real valued number representing angle."""
+
+    nom_log_abs, _ = dot(tt_kernels_1, tt_kernels_2)
+    denom_log_abs_1, _ = dot(tt_kernels_1, tt_kernels_1)
+    denom_log_abs_2, _ = dot(tt_kernels_2, tt_kernels_2)
+    log_cos_alpha = 2 * nom_log_abs - denom_log_abs_1 - denom_log_abs_2
+    alpha = jnp.arccos(jnp.exp(log_cos_alpha))
+    return alpha
