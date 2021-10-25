@@ -169,7 +169,7 @@ def dot(tt_kernels_1,
             phi: phase of z"""
 
     tt_kernels_1 = list(map(jnp.conj, tt_kernels_1))
-    left = jnp.tensordot(tt_kernels_1, tt_kernels_2, axes=[[1], [1]])
+    left = jnp.tensordot(tt_kernels_1[0], tt_kernels_2[0], axes=[[1], [1]])
     left = left[0, :, 0]
     log_norm = 0.
     for i, (kernel_1, kernel_2) in enumerate(zip(tt_kernels_1[1:], tt_kernels_2[1:])):
