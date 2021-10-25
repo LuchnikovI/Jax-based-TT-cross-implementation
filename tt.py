@@ -205,7 +205,7 @@ def relative_difference_sq(tt_kernels_1,
         real valued number representing square of the relative difference."""
 
     log_abs_11, _ = dot(tt_kernels_1, tt_kernels_1)
-    log_abs_22, _ = dot(tt_kernels_1, tt_kernels_1)
+    log_abs_22, _ = dot(tt_kernels_2, tt_kernels_2)
     log_abs_12, _ = dot(tt_kernels_1, tt_kernels_2)
     diff_sq = 1 + jnp.exp(log_abs_22 - log_abs_11) - 2 * jnp.exp(log_abs_12 - log_abs_11)
     return diff_sq
