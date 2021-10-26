@@ -177,8 +177,8 @@ def dot(tt_kernels_1,
 
     Returns:
         the result of the dot product in the following terms:
-            log_abs: log(|z|)
-            phi: phase of z"""
+            log_abs: log(|z|),
+            phi: phase of z."""
 
     tt_kernels_1 = list(map(jnp.conj, tt_kernels_1))
     left = jnp.tensordot(tt_kernels_1[0], tt_kernels_2[0], axes=[[1], [1]])
@@ -186,6 +186,9 @@ def dot(tt_kernels_1,
     log_norm = 0.
     for i, (kernel_1, kernel_2) in enumerate(zip(tt_kernels_1[1:], tt_kernels_2[1:])):
         left = jnp.tensordot(left, kernel_1, axes=[[0], [0]])
+        norm = jnp.linalg.norm(left)
+        left /= norm
+        log_norm += jnp.log(norm)
         left = jnp.tensordot(left, kernel_2, axes=[[0, 1], [0, 1]])
         norm = jnp.linalg.norm(left)
         left /= norm
